@@ -1,0 +1,71 @@
+cabal-version:      2.4
+name:               Matrix-Backpropagation
+version:            0.1.0.0
+
+-- A short (one-line) description of the package.
+-- synopsis: Implementation of different methods to do backpropagation using matrices.
+
+-- A longer description of the package.
+-- description: Code for my thesis about backpropagation using matrix operators combined with semirings. Different implementations can be compared and executed.
+
+-- A URL where users can report bugs.
+-- bug-reports:
+license:            NONE
+author:             Josse Huybrechts
+maintainer:         josse.huybrechts@gmail.com
+
+-- A copyright notice.
+-- copyright:
+-- category:
+extra-source-files: CHANGELOG.md
+
+executable Matrix-Backpropagation
+    main-is:          
+        Main.hs
+
+    -- Modules included in this executable, other than Main.
+    other-modules: 
+        Backpropagation.Backpropagation,
+        Backpropagation.Backpropagation3x3,
+        Backpropagation.BackpropagationFull,
+        Backpropagation.BackpropagationSquareMatrix,
+        Backpropagation.BackpropagationIndexed1,
+        Backpropagation.BackpropagationIndexed2,
+        Backpropagation.BackpropagationIndexedIO,
+        Tests.Backpropagation3x3Test,
+        Tests.BackpropagationFullTest,
+        Tests.BackpropagationSquareMatrixTest,
+        Tests.BackpropagationIndexed1Test,
+        Tests.BackpropagationIndexed2Test,
+        Tests.ForwardADTest,
+        Tests.ReverseModeIndexedTest,
+        AD.ForwardMode,
+        AD.ReverseMode,
+        AD.ReverseModeIndexed,
+        AD.NCReverseMode,
+        MNISTExampleBackprop,
+        IndexedSemiring,
+        IndexedMatrix1,
+        IndexedMatrix2
+    -- LANGUAGE extensions used by modules in this package.
+    -- other-extensions:
+    build-depends:    
+        base ^>=4.14.3.0,
+        containers,
+        array,
+        time,
+        backprop,
+        hmatrix,
+        lens,
+        hmatrix-backprop,
+        mwc-random,
+        mnist-idx,
+        one-liner-instances,
+        split,
+        deepseq,
+        transformers,
+        filepath,
+        vector,
+        HUnit
+    hs-source-dirs:   app
+    default-language: Haskell2010
