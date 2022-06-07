@@ -9,6 +9,9 @@ import Test.HUnit
 roundTo :: Double -> Double -> Double
 roundTo i d = (fromIntegral (round ((10**i)*d))) /(10**i)
 
+roundNetTo :: Double -> Net -> Net
+roundNetTo i (N w11 w12 w13 w21 w22 w23 w31 w32 w33 b1 b2 b3) = N (roundTo i w11) (roundTo i w12) (roundTo i w13) (roundTo i w21) (roundTo i w22) (roundTo i w23) (roundTo i w31) (roundTo i w32) (roundTo i w33) (roundTo i b1) (roundTo i b2) (roundTo i b3)
+
 testLogistic      = TestCase (assertEqual "for (logistic [2, 9.5, -3.6])"
                                           [0.880797, 0.999925, 0.026597]
                                           (fmap (\x-> roundTo 6 x) (logistic [2, 9.5, -3.6]))
@@ -30,18 +33,18 @@ testMatrixVecProd = TestCase (assertEqual "for (matrixVecProd [[1,2,3,4],[5,6,7,
                              )
 
 testRunNet        = TestCase (assertEqual "for (runNet [9, 0.3, 2] [[0.5, 3.1, 9.04], [0.99, -6.12, 2.37], [4.82, -0.421, 0.92]] [1.15, 8.43, 0.067]),"
-                                          [0.9999999999804882, 0.9999999983851116, 1]
-                                          (fmap (\x-> roundTo 16 x) (runNet [9, 0.3, 2] [[0.5, 3.1, 9.04], [0.99, -6.12, 2.37], [4.82, -0.421, 0.92]] [1.15, 8.43, 0.067]))
+                                          [1, 1, 1]
+                                          (fmap (\x-> roundTo 6 x) (runNet [9, 0.3, 2] [[0.5, 3.1, 9.04], [0.99, -6.12, 2.37], [4.82, -0.421, 0.92]] [1.15, 8.43, 0.067]))
                              )
 
 testNetUpdate     = TestCase (assertEqual "for (createNet (fromList [(W11, 1), (W12, 2), (W13, 3), (W21, 4), (W22, 5), (W23, 6), (W31, 7), (W32, 8), (W33, 9), (B1, 10), (B2, 11), (B3, 12)]))"
                                           (N 1 2 3 4 5 6 7 8 9 10 11 12)
-                                          (createNet (fromList [(W11, 1), (W12, 2), (W13, 3), (W21, 4), (W22, 5), (W23, 6), (W31, 7), (W32, 8), (W33, 9), (B1, 10), (B2, 11), (B3, 12)]))
+                                          (roundNetTo 6 $ createNet (fromList [(W11, 1), (W12, 2), (W13, 3), (W21, 4), (W22, 5), (W23, 6), (W31, 7), (W32, 8), (W33, 9), (B1, 10), (B2, 11), (B3, 12)]))
                              )
 
 testCreateNet     = TestCase (assertEqual "for (N 1 1 1 1 1 1 1 1 1 1 1 1- 0.2*N 0.3 10 7 2 3.2 15 (-1) (-0.1) 1 1 1 1)"
                                           (N 0.94 (-1) (-0.4) 0.6 0.36 (-2) 1.2 1.02 0.8 0.8 0.8 0.8)
-                                          (N 1 1 1 1 1 1 1 1 1 1 1 1- 0.2*N 0.3 10 7 2 3.2 15 (-1) (-0.1) 1 1 1 1)
+                                          (roundNetTo 6 $ N 1 1 1 1 1 1 1 1 1 1 1 1- 0.2*N 0.3 10 7 2 3.2 15 (-1) (-0.1) 1 1 1 1)
                              )
 
 w :: [[Expr NetVar ]]

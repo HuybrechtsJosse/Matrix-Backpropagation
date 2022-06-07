@@ -3,9 +3,7 @@
 {-# LANGUAGE FlexibleInstances   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies        #-}
-{-# LANGUAGE FlexibleContexts    #-}
-{-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE ViewPatterns        #-}
 
 module Backpropagation.BackpropagationSquareMatrix where
 
@@ -41,6 +39,7 @@ import qualified Numeric.LinearAlgebra           as HM
 import qualified Numeric.LinearAlgebra.Static    as H
 import qualified System.Random.MWC               as MWC
 import qualified System.Random.MWC.Distributions as MWC
+import IndexedSemiring (Indexed(..))
 
 
 -- Example network of n inputs to n outputs
@@ -145,10 +144,6 @@ main = do
         print "Network error: "
         print (evalNetErr (mkRSquare 5 (fst (head testData))) (mkRSquare 5 (snd (head testData))) m)
 
--- *********************************************
--- Plumbing for running the network on real data
--- *********************************************
-
 trainList :: (KnownNat n, KnownNat m) => [(H.R n, H.R m)] -> Net n -> Net n
 trainList = flip $ foldl' (\n (x,y) -> stepNet (mkRSquare (getDim n) x) (mkRSquare (getDim n) y) n)
 
@@ -172,20 +167,6 @@ testNet xs n = sum (Prelude.map (uncurry test) xs) / fromIntegral (length xs)
       where
         r = evalNet (mkRSquare (getDim n) x) n
 
-
-loadMNIST
-    :: FilePath
-    -> FilePath
-    -> IO (Maybe [(H.R 784, H.R 10)])
-loadMNIST fpI fpL = runMaybeT $ do
-    i <- MaybeT          $ decodeIDXFile       fpI
-    l <- MaybeT          $ decodeIDXLabelsFile fpL
-    d <- MaybeT . return $ labeledIntData l i
-    MaybeT . return $ for d (bitraverse mkImage mkLabel . swap)
-  where
-    mkImage = H.create . VG.convert . VG.map (\i -> fromIntegral i / 255)
-    mkLabel n = H.create $ HM.build 10 (\i -> if round i == n then 1 else 0)
-
 instance KnownNat n => Num (Net n) where
     (+)         = gPlus
     (-)         = gMinus
@@ -206,11 +187,6 @@ instance KnownNat n => MWC.Variate (H.R n) where
 
 instance (KnownNat m, KnownNat n) => MWC.Variate (H.L m n) where
     uniform g = H.uniformSample <$> MWC.uniform g <*> pure 0 <*> pure 1
-    uniformR (l, h) g = (\x -> x * (h - l) + l) <$> MWC.uniform g
-
-instance KnownNat n => MWC.Variate (Net n) where
-    uniform g = N <$> MWC.uniform g
-                  <*> MWC.uniform g
     uniformR (l, h) g = (\x -> x * (h - l) + l) <$> MWC.uniform g
 
 instance NFData (Net n)

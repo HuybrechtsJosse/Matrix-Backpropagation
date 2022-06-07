@@ -1,8 +1,5 @@
-{-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE UndecidableInstances  #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE AllowAmbiguousTypes #-}
 
 module AD.NCReverseMode where
 
@@ -22,19 +19,16 @@ ddotplus :: Semiring d => (d -> d -> d) -> (d -> d -> d) -> (d -> d -> d)
 f `ddotplus` g = \l r -> f l r `plus` g l r
 
 actL :: Semiring d => d -> (d -> d -> d) -> (d -> d -> d)
-scalar `actL` f = \l r -> f (scalar `times` l) r
+x `actL` f = \l r -> f (x `times` l) r
 
-actLPointwise :: Num d => d -> (d -> d -> d) -> (d -> d -> d)
-scalar `actLPointwise` f = \l r -> f (scalar * l) r
+actPointwise :: Num d => d -> (d -> d -> d) -> (d -> d -> d)
+x `actPointwise` f = \l r -> f (x * l) r
 
 actR :: Semiring d => (d -> d -> d) -> d -> (d -> d -> d)
-f `actR` scalar = \l r -> f l (r `times` scalar)
-
-actRPointwise :: Num d => (d -> d -> d) -> d -> (d -> d -> d)
-f `actRPointwise` scalar = \l r -> f l (r * scalar)
+f `actR` x = \l r -> f l (r `times` x)
 
 {-|
-Datatype for Non-Cummutative Reverse AD
+Datatype for dual numbers for Non-Cummutative Reverse AD
 -}
 data NCDualR d = NCD {fstNCD :: d , sndNCD :: d -> d -> d}
 
@@ -42,20 +36,23 @@ instance (Num d, Semiring d, Transposable d d) => Num (NCDualR d) where
     (+)                = plus
     (*)                = times
     fromInteger i      = NCD (fromInteger i) (const $ const zero)
-    negate (NCD f df)  = NCD (negate f) (negate one `actL` df)
+    negate (NCD f df)  = NCD (negate f) (\l r -> df (negate l) r)
+
 instance (Fractional d, Semiring d, Transposable d d) => Fractional (NCDualR d) where
     fromRational r            = NCD (fromRational r) (const $ const zero)
-    (/) (NCD f df) (NCD g dg) = NCD (f / g) (((1/g) `actLPointwise` df) `ddotplus` ((-f/(g*g)) `actLPointwise` dg))
+    (/) (NCD f df) (NCD g dg) = NCD (f / g) (((1/g) `actPointwise` df) `ddotplus` (negate (f/(g*g)) `actPointwise` dg))
+
 instance (Floating d, Semiring d, Transposable d d) => Floating (NCDualR d) where
-    exp (NCD f df) = NCD (exp f) (exp f `actLPointwise` df)
-    log (NCD f df) = NCD (log f) ((1/f) `actLPointwise` df)
+    exp (NCD f df) = NCD (exp f) (exp f `actPointwise` df)
+    log (NCD f df) = NCD (log f) ((1/f) `actPointwise` df)
 
 instance (Norm d, Semiring d, Transposable d d, Num d) => Norm (NCDualR d) where
-    norm x = 1 `times` x
-instance Transposable d d => Transposable (NCDualR d) (NCDualR d) where
-    tr  (NCD f df) = NCD (tr  f) (\l r -> df (tr l) (tr r))
+    norm (NCD f df) = NCD (norm f) (1 `actL` df)
 
-instance (Semiring d, Transposable d d, Num d) => Semiring (NCDualR d) where
+instance Transposable d d => Transposable (NCDualR d) (NCDualR d) where
+    tr  (NCD f df) = NCD (tr  f) (\l r -> df (tr r) (tr l))
+
+instance (Semiring d, Transposable d d) => Semiring (NCDualR d) where
     zero = NCD zero (const $ const zero)
     one  = NCD one (const $ const zero)
     plus (NCD f df) (NCD g dg) = NCD (f `plus` g) (df `ddotplus` dg)
@@ -66,5 +63,5 @@ instance (Semiring d, Transposable d d, Num d) => Semiring (NCDualR d) where
 @reverseADNC env x e@ is a function to perform non commutative reverse AD to compute the derivative of @e@ to @x@ with values given in @env@.
  -}
 reverseADNC :: (Eq v, Semiring d, Floating d, Transposable d d, Norm d) => (v -> d) -> v -> Expr v -> NCDualR d
-reverseADNC env x e = let gen y = NCD (env y) (if x == y then reprB one else reprB zero)
+reverseADNC env x e = let gen y = NCD (env y) (if x == y then reprB one else const $ const zero)
                   in eval gen e

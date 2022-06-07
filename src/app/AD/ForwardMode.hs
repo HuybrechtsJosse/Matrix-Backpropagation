@@ -1,8 +1,5 @@
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE UndecidableInstances  #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE AllowAmbiguousTypes #-}
 
 module AD.ForwardMode where
 
@@ -14,13 +11,12 @@ import Prelude hiding ((++), (**))
 
 ------ CLASSES ------
 
-{- 
+{-| 
 Class for Semiring with 4 operators:
     zero
     one
     plus --addition
     times -- multiplication
-Instances of Semiring for Integer, Double and Float
 -}
 class Semiring d where
     zero   :: d
@@ -47,9 +43,8 @@ instance Semiring Float where
     times = (*)
 
 {- 
-Class for Norm with 1 operator:
-    norm
-Instances of Norm for Integer, Double, Float and Expr v
+Class for Norm with 2 operators:
+    norm and oneNorm
 -}
 class Norm a where
     norm :: a -> a
@@ -65,9 +60,8 @@ instance Norm Float where
     norm = id
 
 ------ DATA TYPES AND FUNCTIONS ------
-{-
+{-|
 Data type for expressions
-Intstances Num, Fractional, Floating, Norm, Transposable, Semiring
 -}
 data Expr v = Var v | Zero | One | Negate (Expr v) | Plus (Expr v) (Expr v) | Times (Expr v) (Expr v) | Div (Expr v) (Expr v) | Exp (Expr v) | Log (Expr v) | Norm (Expr v) | Transpose (Expr v)
     deriving (Show, Eq)
@@ -102,7 +96,7 @@ instance Semiring (Expr v) where
     plus   = Plus
     times   = Times
 
--- Eval function for evaluating an expression given a generator for the variables in the expression
+-- | Eval function for evaluating an expression given a generator for the variables in the expression
 eval :: (Semiring d, Floating d, Transposable d d, Norm d) => (v -> d) -> Expr v -> d
 eval gen (Var x)       = gen x
 eval gen Zero          = zero
@@ -117,9 +111,8 @@ eval gen (Transpose e) = tr (eval gen e)
 eval gen (Norm e)      = norm (eval gen e)
 
 
-{-
+{-|
 Data type for dual numbers
-Instances: Functor, Num, Fractional, Floating, Norm, Transposable, Semiring
 -}
 data Dual d = D {fstD :: d, sndD :: d}
     deriving (Show)
@@ -156,7 +149,7 @@ instance Semiring d => Semiring (Dual d) where
     (D f df) `plus` (D g dg) = D (f `plus` g) (df `plus` dg)
     (D f df) `times` (D g dg) = D (f `times` g) ((df `times` g) `plus` (f `times` dg))
 
--- Functions for calculating the derivative of an expression
+-- | Functions for calculating the derivative of an expression
 derive :: Eq v => v -> Expr v -> Expr v
 derive x = sndD . derive' x
 
@@ -167,14 +160,13 @@ derive' x e =let gen y = D (Var y) (if x == y then One else Zero)
 evalDerive :: (Eq v, Semiring d, Floating d, Norm d, Transposable d d) => (v -> d) -> v -> Expr v -> d
 evalDerive env x = eval env . derive x
 
--- Forward mode AD
+-- | Forward mode AD
 forwardAD :: (Eq v, Semiring d, Floating d, Norm d, Transposable d d) => (v -> d) -> v -> Expr v -> d
 forwardAD env x e = let gen y = D (env y) (if x == y then one else zero)
                     in sndD (eval gen e)
 
-{-  
+{-| 
 Type class for DualGrad v d, a function of type v -> Dual d
-Intsances: Num, Fractional, Floating, Norm, Transposable, Semiring
 -}
 type DualGrad v d = v -> Dual d
 
@@ -195,14 +187,13 @@ instance Semiring d => Semiring (DualGrad v d) where
     x `plus` y   = \v -> x v `plus` y v
     x `times` y   = \v -> x v `times` y v
 
--- function for forwardGradient, representing the differentiation as a function of the variable with the dual number with the evaluation and differentiation as the result.
+-- | function for forwardGradient, representing the differentiation as a function of the variable with the dual number with the evaluation and differentiation as the result.
 forwardGradient :: (Eq v, Semiring d, Floating d, Norm d, Transposable d d) => (v -> d) -> Expr v -> DualGrad v d
 forwardGradient env e = let gen x = \y -> D (env x) (if x == y then one else zero)
                       in eval gen e
 
-{-
-Data type for AllDual'
-Intsances: Num, Fractional, Floating, Norm, Transposable, Semiring
+{-|
+Data type for AllDual' for shared derivatives in dual numbers.
 -}
 data AllDual' v d = SH {fstSH :: d, sndSH :: v -> d}
 
@@ -228,18 +219,18 @@ df `dotplus` dg = \ v -> df v `plus` dg v
 
 act :: Semiring d => d -> (v -> d) -> (v -> d)
 f `act` dg = \ v -> f `times` dg v
--- function to transform AllDual' to DualGrad
+
+-- | function to transform AllDual' to DualGrad
 unshare :: AllDual' v d -> DualGrad v d
 unshare (SH f df) = \v -> D f (df v)
 
--- Function for froward AD with shared evaluation
+-- | Function for froward AD with shared evaluation
 forwardSharedGradient :: (Eq v, Semiring d, Floating d, Norm d, Transposable d d) => (v -> d) -> Expr v -> AllDual' v d
 forwardSharedGradient env e = let genShare x = SH (env x) (\y -> if x == y then one else zero)
                        in eval genShare e
 
-{- 
-Data type for SDual
-Intsances: Num, Fractional, Floating, Norm, Transposable, Semiring
+{- |
+Data type for SDual, dual number with Map for the derivative part
 -}
 data SDual v d = SP {fstSP :: d, sndSP :: Map v d}
     deriving (Show, Eq)
@@ -273,18 +264,18 @@ instance (Ord v, Semiring d) => Semiring (SDual v d) where
     (SP f df) `plus` (SP g dg) = SP (f `plus` g) (df `dotplus2` dg)
     (SP f df) `times` (SP g dg) = SP (f `times` g) ((g `act'` df) `dotplus2` (f `act'` dg))
 
--- function to transform SDual to AllDual'
+-- | Function to transform SDual to AllDual'
 expand :: (Ord v, Semiring d) => SDual v d -> AllDual' v d
 expand (SP f df) = SH f (\x -> findWithDefault zero x df)
 
---  functions for easy working with maps in addition and multiplication differentiation
+-- | Functions for easy working with maps in addition and multiplication differentiation
 dotplus2 :: (Ord v, Semiring d) => Map v d -> Map v d -> Map v d
 df `dotplus2` dg = unionWith plus df dg
 
 act' :: (Ord v, Semiring d) => d -> Map v d -> Map v d
 f `act'` dg = fmap (f `times`) dg
 
--- Function for froward AD with sparse differentiation and shared evaluation
+-- | Function for froward AD with sparse differentiation and shared evaluation
 forwardSparseGradient :: (Ord v, Semiring d, Floating d, Norm d, Transposable d d) => (v -> d) -> Expr v -> SDual v d
 forwardSparseGradient env e = let genSparse x = SP (env x) (singleton x one)
                         in eval genSparse e

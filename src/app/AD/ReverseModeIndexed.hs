@@ -1,9 +1,6 @@
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE UndecidableInstances  #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE BlockArguments #-}
 
 module AD.ReverseModeIndexed where
 
@@ -28,19 +25,19 @@ ddotplus :: IndexedSemiring d => (d -> d -> d) -> (d -> d -> d) -> (d -> d -> d)
 f `ddotplus` g = \l r -> f l r `plus` g l r
 
 actL :: IndexedSemiring d => d -> (d -> d -> d) -> (d -> d -> d)
-scalar `actL` f = \l r -> f (scalar `times` l) r
+x `actL` f = \l r -> f (x `times` l) r
 
 actLPointwise :: Num d => d -> (d -> d -> d) -> (d -> d -> d)
-scalar `actLPointwise` f = \l r -> f (scalar * l) r
+x `actLPointwise` f = \l r -> f (x * l) r
 
 actR :: IndexedSemiring d => (d -> d -> d) -> d -> (d -> d -> d)
-f `actR` scalar = \l r -> f l (r `times` scalar)
+f `actR` x = \l r -> f l (r `times` x)
 
 actRPointwise :: Num d => (d -> d -> d) -> d -> (d -> d -> d)
-f `actRPointwise` scalar = \l r -> f l (r * scalar)
+f `actRPointwise` x = \l r -> f l (r * x)
 
 {-|
-Datatype for Indexed Reverse AD
+Datatype for dual numbers for Indexed Reverse AD
 -}
 data IndexedDualR d = ID {fstID :: d , sndID :: d -> d -> d}
 
@@ -49,10 +46,10 @@ instance (Num d, Indexed d, IndexedSemiring d, Transposable d d) => Num (Indexed
     (*)               = times
     negate (ID f df)  = ID (negate f) (\l r -> df (negate l) r)
 instance (Fractional d, IndexedSemiring d, Transposable d d, Indexed d) => Fractional (IndexedDualR d) where
-    (/) (ID f df) (ID g dg) = ID (f / g) (((g/(g*g)) `actLPointwise` df) `ddotplus` ((negate f/(g*g)) `actLPointwise` dg))
+    (/) (ID f df) (ID g dg) = ID (f / g) (\l r -> df (l / g) r + dg (negate f / g / g * l) r)
 instance (Floating d, IndexedSemiring d, Transposable d d, Indexed d) => Floating (IndexedDualR d) where
-    exp (ID f df) = ID (exp f) (exp f `actLPointwise` df)
-    log (ID f df) = ID (log f) ((f/(f*f)) `actLPointwise` df)
+    exp (ID f df) = ID (exp f) (\l r -> df (exp f * l) r)
+    log (ID f df) = ID (log f) (\l r -> df (l/f) r)
 
 instance (Norm d, IndexedSemiring d, Transposable d d, Num d, Indexed d) => Norm (IndexedDualR d) where
     norm (ID f df) = ID (norm f) (oneNorm f `actL` df)
@@ -66,9 +63,10 @@ instance (IndexedSemiring d, Transposable d d, Num d) => IndexedSemiring (Indexe
     plus (ID f df) (ID g dg) = ID (f `plus` g) (df `ddotplus` dg)
     times (ID f df) (ID g dg) = ID (f `times` g) ((df `actR` tr g) `ddotplus` (tr f `actL` dg))
 
-instance Indexed d => Indexed (IndexedDualR d) where
+instance (IndexedSemiring d, Indexed d) => Indexed (IndexedDualR d) where
     rows (ID f _) = rows f
     cols (ID f _) = cols f
+    fromInt i (ID f df) = ID (fromInt i f) (\l r -> df (zero (rows l) (cols l)) (zero (rows r) (cols r)))
 {-|
 @reverseADI env x e@ is a function to perform indexed reverse AD to compute the derivative of @e@ to @x@ with values given in @env@.
  -}
@@ -77,8 +75,7 @@ reverseADI env x e = let gen y = ID (env y) (if x == y then reprBI (one 1) else 
                   in evalIndexed gen e
 
 {- 
-Data type for IndexedCDual
-Intsances: Num, Fractional, Floating, Norm, Transposable, Semiring
+Data type for IndexedCDual, dual number for indexed reverse AD with sparse maps
 -}
 data IndexedCDual v d = IC {fstC :: d, sndC :: d -> d -> Map v d}
 
@@ -106,6 +103,11 @@ instance (Ord v, IndexedSemiring d, Transposable d d) => IndexedSemiring (Indexe
     (IC f df) `plus` (IC g dg)   = IC (f `plus` g) (df `dotplusM` dg)
     (IC f df) `times` (IC g dg)  = IC (f `times` g) ((df `actR2'` tr g) `dotplusM` (tr f `actL2'` dg))
 
+instance Indexed d => Indexed (IndexedCDual v d) where
+    rows (IC f _) = rows f
+    cols (IC f _) = cols f
+    fromInt i (IC f _) = IC (fromInt i f) (const $ const empty)
+
 dotplusM :: (Ord v, IndexedSemiring d) => (d -> d -> Map v d) -> (d -> d -> Map v d) -> (d -> d -> Map v d)
 f1 `dotplusM` f2 = \l r -> unionWith plus (f1 l r) (f2 l r)
 
@@ -130,13 +132,13 @@ reprBMI m = \l r -> act' l r m
 absBMI :: (d -> d -> Map v d) -> d -> Map v d
 absBMI f one = f one one
 
-reverseADSparse :: (Ord v, IndexedSemiring d, Floating d, Transposable d d, Norm d) => (v -> d) -> IndexedExpr v -> IndexedCDual v d
-reverseADSparse env e = let genRev x = IC (env x) (\l r -> singleton x (l `times` r))
+-- | indexed reverse AD with sparse maps
+reverseADSparseI :: (Ord v, IndexedSemiring d, Floating d, Transposable d d, Norm d, Indexed d) => (v -> d) -> IndexedExpr v -> IndexedCDual v d
+reverseADSparseI env e = let genRev x = IC (env x) (\l r -> singleton x (l `times` r))
                   in evalIndexed genRev e
 
-{- 
-Data type for IndexedCDual'
-Intsances: Num, Fractional, Floating, Norm, Transposable, Semiring
+{- |
+Data type for IndexedCDual', dual number for indexed reverse AD with cayley representation
 -}
 data IndexedCDual' v d = IC' {fstC' :: d, sndC' :: d -> d -> Map v d -> Map v d}
 
@@ -165,25 +167,26 @@ instance (IndexedSemiring d, Transposable d d, Num d) => IndexedSemiring (Indexe
 instance Indexed d => Indexed (IndexedCDual' v d) where
     rows (IC' f _) = rows f
     cols (IC' f _) = cols f
+    fromInt i (IC' f _) = IC' (fromInt i f) (const $ const id)
 
--- function to transform CDual to CDual'
+-- | function to transform CDual to CDual'
 reprSCI :: (Ord v, IndexedSemiring d) => IndexedCDual v d -> IndexedCDual' v d
 reprSCI (IC f df) = IC' f (\l r m -> unionWith plus m (df l r))
 
--- function to transform CDual' to CDual
+-- | function to transform CDual' to CDual
 absSCI :: (Ord v, IndexedSemiring d) => IndexedCDual' v d -> IndexedCDual v d
 absSCI (IC' f df) = IC f (\l r -> df l r empty)
 
 insertWith :: (Ord v, IndexedSemiring d) => (d -> d -> d) -> v -> d -> d -> Map v d -> Map v d
 insertWith f x l r m = unionWith f m (singleton x (l `times` r))
 
+-- | function for indexed reverse AD with cayley representation
 reverseADCayleyI :: (Ord v, IndexedSemiring d, Floating d, Norm d, Transposable d d, Indexed d) => (v -> d) -> IndexedExpr v -> IndexedCDual' v d
 reverseADCayleyI env e = let genCayley x = IC' (env x) (\l r m -> insertWith plus x l r m)
                         in evalIndexed genCayley e
 
-{-
-Data type for CDualIOI
-Intsances: Num, Fractional, Floating, Norm, Transposable, Semiring
+{- |
+Data type for CDualIOI, dual number for indexed reverse AD with mutable arrays
 -}
 data IndexedCDualIO d = IM {fstMI :: d, sndMI :: d -> d -> IO ()}
 
@@ -212,18 +215,23 @@ instance (IndexedSemiring d, Transposable d d) => IndexedSemiring (IndexedCDualI
     (IM f df) `plus` (IM g dg)   = IM (f `plus` g) (\l r -> df l r >> dg l r)
     (IM f df) `times` (IM g dg)  = IM (f `times` g) (\l r -> df l (r `times` tr g) >> dg (tr f `times` l) r)
 
+instance Indexed d => Indexed (IndexedCDualIO d) where
+    rows (IM f _) = rows f
+    cols (IM f _) = cols f
+    fromInt i (IM f _) = IM (fromInt i f) (\l r -> return ())
+
 reprIOIndexed :: (IndexedSemiring d, Ix v, Ord v) => IOArray v d -> IndexedCDual' v d -> IndexedCDualIO d
-reprIOIndexed arr (IC' f df ) = let df' = \l r -> do 
+reprIOIndexed arr (IC' f df ) = let df' = \l r -> do
                                             let m = df l r empty
                                             forM_ (toList m) (\(v, a) ->
-                                                do 
+                                                do
                                                     b <- readArray arr v
                                                     writeArray arr v (b  `plus` a))
                                 in IM f df'
 
 
 absIOIndexed :: (IndexedSemiring d, Ix v, Ord v, Show v, Show d) => (v, v) -> (IOArray v d -> IndexedCDualIO d) -> IO (Map v d)
-absIOIndexed rng d = do 
+absIOIndexed rng d = do
                     arr <- newArray rng (zero 1 1)
                     let (IM f df) = d arr
                     df (one 1) (one 1)
@@ -231,10 +239,10 @@ absIOIndexed rng d = do
                     let m = fromAscList l
                     return m
 
-
-reverseADIOIndexed :: (IndexedSemiring d, Ix v, Floating d, Norm d, Transposable d d, Show v, Show d) => (v, v) -> (v -> d) -> IndexedExpr v -> IO (Map v d)
+-- | function for reverse AD with mutable arrays
+reverseADIOIndexed :: (IndexedSemiring d, Ix v, Floating d, Norm d, Transposable d d, Show v, Show d, Indexed d) => (v, v) -> (v -> d) -> IndexedExpr v -> IO (Map v d)
 reverseADIOIndexed rng env e = absIOIndexed rng (\arr ->
-    let genIO x = IM (env x) (\l r -> do 
+    let genIO x = IM (env x) (\l r -> do
                                         b <- readArray arr x
                                         writeArray arr x (b `plus` (l `times` r )))
     in evalIndexed genIO e)

@@ -7,7 +7,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 
 module MNISTExampleBackprop where
--- This file uses contains code from the backprop library used to compare with my own implementation.
 
 ------ IMPORTS ------
 import Control.DeepSeq ( NFData, force )
@@ -40,10 +39,16 @@ import qualified Numeric.LinearAlgebra.Static    as H
 import qualified System.Random.MWC               as MWC
 import qualified System.Random.MWC.Distributions as MWC
 
-data Net = N { _weights1 :: L 250 784
-             , _bias1    :: R 250
-             , _weights2 :: L 10 250
-             , _bias2    :: R 10
+data Net = N { _weights1 :: L 50 784
+             , _bias1    :: R 50
+             , _weights2 :: L 20 50
+             , _bias2    :: R 20
+             , _weights3 :: L 20 20
+             , _bias3    :: R 20
+             , _weights4 :: L 20 20
+             , _bias4    :: R 20
+             , _weights5 :: L 10 20
+             , _bias5    :: R 10
              }
   deriving (Generic, Show)
 
@@ -74,10 +79,13 @@ runNet
     => BVar s Net
     -> BVar s (R 784)
     -> BVar s (R 10)
-runNet n x = z
+runNet n x = o5
   where
-    y = softMax $ (n ^^. weights1) #> x + (n ^^. bias1)
-    z = softMax  $ (n ^^. weights2) #> y + (n ^^. bias2)
+    o1 = logistic $ (n ^^. weights1) #> x  + (n ^^. bias1)
+    o2 = logistic $ (n ^^. weights2) #> o1 + (n ^^. bias2)
+    o3 = logistic $ (n ^^. weights3) #> o2 + (n ^^. bias3)
+    o4 = logistic $ (n ^^. weights4) #> o3 + (n ^^. bias4)
+    o5 = softMax $ (n ^^. weights5) #> o4 + (n ^^. bias5)
 
 netErr
     :: Reifies s W
@@ -108,10 +116,6 @@ main = MWC.withSystemRandom $ \g -> do
     putStrLn "Loaded data."
     start <- getCurrentTime
     net0 <- MWC.uniformR (-0.5, 0.5) g
-    -- print $ HM.maxIndex (H.extract (evalBP (`runNet` constVar (fst $ head train)) net0))
-    -- writeFile "testNet.txt" (show net0)
-    -- writeFile "testGradient.txt" (show (gradBP (netErr (constVar (fst $ head train)) (constVar (snd $ head train))) net0))
-    -- writeFile "testNet2.txt" (show $ stepNet (fst $ head train) (snd $ head train) net0)
     flip evalStateT net0 . forM_ [1..5] $ \e -> do
       train' <- liftIO . fmap V.toList $ MWC.uniformShuffle (V.fromList train) g
       liftIO $ printf "[Epoch %d]\n" (e :: Int)
@@ -186,6 +190,12 @@ instance (KnownNat m, KnownNat n) => MWC.Variate (L m n) where
 
 instance MWC.Variate Net where
     uniform g = N <$> MWC.uniform g
+                  <*> MWC.uniform g
+                  <*> MWC.uniform g
+                  <*> MWC.uniform g
+                  <*> MWC.uniform g
+                  <*> MWC.uniform g
+                  <*> MWC.uniform g
                   <*> MWC.uniform g
                   <*> MWC.uniform g
                   <*> MWC.uniform g

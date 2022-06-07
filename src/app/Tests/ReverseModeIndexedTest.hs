@@ -4,7 +4,7 @@ module Tests.ReverseModeIndexedTest where
 ------ IMPORTS ------
 import AD.ForwardMode (XY(X))
 import AD.ReverseModeIndexed (reverseADI, absBI, IndexedDualR (sndID))
-import IndexedMatrix2 (IndexedMatrix(IM))
+import IndexedMatrix (IndexedMatrix(IM))
 import IndexedSemiring (IndexedExpr(..), IndexedSemiring (one), Indexed(..))
 import Numeric.LinearAlgebra (Transposable(..))
 import Test.HUnit
@@ -12,6 +12,7 @@ import Test.HUnit
 instance Indexed Double where
     rows _ = 1
     cols _ = 1
+    
 instance Transposable Double Double where
     tr   = id 
     tr'  = id
@@ -35,8 +36,6 @@ testIndexedADNegate  = TestCase (assertEqual "for (absBI (sndID $ reverseADI (co
                                           (IM 1 1 (-4.9))
                                           (absBI (sndID $ reverseADI (const (IM 1 1 2.45)) X (Negate (Times (Var X) (Var X)))) (one 1))
                              )
-
--- Reverse Mode IO Tests
 
 tests = TestList [
                   TestLabel "testIndexedADExp" testIndexedADExp,

@@ -1,7 +1,4 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE DeriveGeneric #-}
 
 module IndexedSemiring where
 
@@ -16,6 +13,7 @@ import Prelude hiding ((++), (**), (<>))
 class Indexed d where
     rows :: d -> Int
     cols :: d -> Int
+    fromInt :: Int -> d -> d
 
 class IndexedSemiring d where
     zero  :: Int -> Int -> d
@@ -41,7 +39,7 @@ instance IndexedSemiring Float where
     plus      = (+)
     times     = (*)
 
-data IndexedExpr v = Var v | Zero Int Int | One Int | Negate (IndexedExpr v) | Plus (IndexedExpr v) (IndexedExpr v) | Times (IndexedExpr v) (IndexedExpr v) | Div (IndexedExpr v) (IndexedExpr v) | Exp (IndexedExpr v) | Log (IndexedExpr v) | Norm (IndexedExpr v) | Transpose (IndexedExpr v)
+data IndexedExpr v = Var v | Zero Int Int | One Int | FromInt Int (IndexedExpr v) | Negate (IndexedExpr v) | Plus (IndexedExpr v) (IndexedExpr v) | Times (IndexedExpr v) (IndexedExpr v) | Div (IndexedExpr v) (IndexedExpr v) | Exp (IndexedExpr v) | Log (IndexedExpr v) | Norm (IndexedExpr v) | Transpose (IndexedExpr v)
     deriving (Show, Eq)
 
 instance Num (IndexedExpr v) where
@@ -58,20 +56,25 @@ instance Floating (IndexedExpr v) where
 
 instance Norm (IndexedExpr v) where
     norm = Norm
+    oneNorm = FromInt 1
 
 instance Transposable (IndexedExpr v) (IndexedExpr v) where
     tr = Transpose
 
+instance Indexed (IndexedExpr v) where
+    fromInt = FromInt
 instance IndexedSemiring (IndexedExpr v) where
     zero   = Zero
     one    = One
     plus   = Plus
     times  = Times
 
-evalIndexed :: (IndexedSemiring d, Floating d, Transposable d d, Norm d) => (v -> d) -> IndexedExpr v -> d
+
+evalIndexed :: (IndexedSemiring d, Floating d, Transposable d d, Norm d, Indexed d) => (v -> d) -> IndexedExpr v -> d
 evalIndexed gen (Var x)       = gen x
 evalIndexed gen (Zero r c)    = zero r c
 evalIndexed gen (One r)       = one r
+evalIndexed gen (FromInt i x) = fromInt i (evalIndexed gen x)
 evalIndexed gen (Negate e)    = negate (evalIndexed gen e)
 evalIndexed gen (Plus e1 e2)  = evalIndexed gen e1 `plus` evalIndexed gen e2
 evalIndexed gen (Times e1 e2) = evalIndexed gen e1 `times` evalIndexed gen e2

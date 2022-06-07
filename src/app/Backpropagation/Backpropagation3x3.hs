@@ -132,10 +132,8 @@ errorList i n input target = evalNetErr input target n:errorList (i-1) (stepNet 
 main :: IO()
 main = do
     let n = N 0.4 0.1 0.04 0.99 0.12 0.37 (-0.82) 0.421 0.92 1.5 (-0.43) 0.067
+    -- print n
     let input = [2, 5, 1]
     let target = [0.4, 0.5, 0.1]
     let m = loopStepNet 10000 n input target
     print ("network error = " ++ show (evalNetErr input target m))
-    print m
-    print (backpropagation (netErr [Var I1, Var I2, Var I3] [[Var W11, Var W21, Var W31],[Var W12, Var W22, Var W32],[Var W13, Var W23, Var W33]] [Var B1, Var B2, Var B3] [Var T1, Var T2, Var T3]) m input target)
-    writeFile "result.txt" (show (errorList 10000 n input target))

@@ -103,6 +103,7 @@ loopStepNet i n input target = stepNet input target (loopStepNet (i-1) n input t
 main :: IO()
 main = do
     let n = N 0.1 0.52 (-0.9) 1.2
+    -- print n
     let input = [2, 5, 1]
     let target = [0.4]
     let m = loopStepNet 50 n input target

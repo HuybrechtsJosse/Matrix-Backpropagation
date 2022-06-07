@@ -11,6 +11,9 @@ import Test.HUnit
 roundTo :: Double -> Double -> Double
 roundTo i d = (fromIntegral (round ((10**i)*d))) /(10**i)
 
+roundSDualTo :: Double -> SDual v Double -> SDual v Double
+roundSDualTo i (SP f df) = SP (roundTo i f) (fmap (roundTo i) df)
+
 w :: Sq 3
 w = matrix [0.94, -1, -0.4, 0.6, 0.36, -2, 1.2, 1.02, 0.8]
 
@@ -27,8 +30,8 @@ testCreateMatrixVar = TestCase (assertEqual "for (createMatrixVar (W1, w))"
                                )
 
 testLogistic        = TestCase (assertEqual "for (logistic [[0.94, -1, -0.4], [0.6, 0.36, -2], [1.2, 1.02, 0.8]])"
-                                            (fmap (fmap (roundTo 5)) [[0.71909966, 0.2689414, 0.4013123],[0.6456563, 0.58904, 0.1192029],[0.76852478, 0.7349726, 0.68997448]])
-                                            (fmap (fmap (roundTo 5)) (logistic [[0.94, -1, -0.4], [0.6, 0.36, -2], [1.2, 1.02, 0.8]]))
+                                            (fmap (fmap (roundTo 6)) [[0.71909966, 0.2689414, 0.4013123],[0.6456563, 0.58904, 0.1192029],[0.76852478, 0.7349726, 0.68997448]])
+                                            (fmap (fmap (roundTo 6)) (logistic [[0.94, -1, -0.4], [0.6, 0.36, -2], [1.2, 1.02, 0.8]]))
                                )
 
 testSoftMax         = TestCase (assertEqual "for (softMax [[0.94, -0.4], [0.36, -2], [1.2, 0.8]])"
@@ -42,17 +45,17 @@ testCrossEntropy    = TestCase (assertEqual "for (crossEntropy [[Var X], [Plus (
                                )
 
 testCrossEntropyForwardAD = TestCase (assertEqual "for (forwardSparseGradient (const 2.45) (crossEntropy [[Var X], [Plus (Var X) (One)], [Times (Plus One One) (Var X)]] [[Plus (Var X) (Var X)], [Times (Var X) (Plus One One)], [Zero]]))"
-                                                  (SP (-10.458865052439531::Double) (fromList [(X,-7.6892143662722718)]))
-                                                  (forwardSparseGradient (const 2.45) (crossEntropy [[Var X], [Plus (Var X) One], [Times (Plus One One) (Var X)]] [[Plus (Var X) (Var X)], [Times (Var X) (Plus One One)], [Zero]]))
+                                                  (fmap (fmap (roundSDualTo 6)) SP (-10.458865::Double) (fromList [(X,-7.689214)]))
+                                                  (roundSDualTo 6 $ forwardSparseGradient (const 2.45) (crossEntropy [[Var X], [Plus (Var X) One], [Times (Plus One One) (Var X)]] [[Plus (Var X) (Var X)], [Times (Var X) (Plus One One)], [Zero]]))
                                      )
 testSoftMaxForwardAD = TestCase (assertEqual "fmap (fmap (forwardSparseGradient (const 2.45))) (softMax [[Var X, Plus (Var X) One, Times (Plus One One) (Var X)]]))"
-                                             ([[SP (0.06533117315056354::Double) (fromList [(X,-0.04946094325631081)]), SP (0.17758854080708833::Double) (fromList [(X,-0.13444878327207369)]), SP (0.7570802860423482::Double) (fromList [(X,0.18390972652838444)])]])
-                                             (fmap (fmap (forwardSparseGradient (const 2.45))) (softMax [[Var X, Plus (Var X) One, Times (Plus One One) (Var X)]]))
+                                             (fmap (fmap (roundSDualTo 6)) [[SP (0.06533117315056354::Double) (fromList [(X,-0.04946094325631081)]), SP (0.17758854080708833::Double) (fromList [(X,-0.13444878327207369)]), SP (0.7570802860423482::Double) (fromList [(X,0.18390972652838444)])]])
+                                             (fmap (fmap (roundSDualTo 6 . forwardSparseGradient (const 2.45))) (softMax [[Var X, Plus (Var X) One, Times (Plus One One) (Var X)]]))
                                 )
 
 testLogisticForwardAD = TestCase (assertEqual "fmap (fmap (forwardSparseGradient (const 2.45))) (logistic [[Var X, Plus (Var X) One, Times (Plus One One) (Var X)]]))"
-                                             ([[SP (0.9205614508160216::Double) (fromList [(X,0.07312806608752301)]), SP (0.969231140642852::Double) (fromList [(X,0.029822136651008052)]), SP (0.9926084586557181::Double) (fromList [(X,0.014673812921675484)])]])
-                                             (fmap (fmap (forwardSparseGradient (const 2.45))) (logistic [[Var X, Plus (Var X) One, Times (Plus One One) (Var X)]]))
+                                             (fmap (fmap (roundSDualTo 6)) [[SP (0.9205614508160216::Double) (fromList [(X,0.07312806608752301)]), SP (0.969231140642852::Double) (fromList [(X,0.029822136651008052)]), SP (0.9926084586557181::Double) (fromList [(X,0.014673812921675484)])]])
+                                             (fmap (fmap (roundSDualTo 6 . forwardSparseGradient (const 2.45))) (logistic [[Var X, Plus (Var X) One, Times (Plus One One) (Var X)]]))
                                 )
 
 tests = TestList [TestLabel "testLogisticForwardAD" testLogisticForwardAD, TestLabel "testSoftMaxForwardAD" testSoftMaxForwardAD, TestLabel "testCreateMatrixVar" testCreateMatrixVar, TestLabel "testLogistic" testLogistic, TestLabel "testSoftMax" testSoftMax, TestLabel "testCrossEntropyForwardAD" testCrossEntropyForwardAD, TestLabel "testCrossEntropy" testCrossEntropy]

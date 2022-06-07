@@ -1,13 +1,10 @@
-{-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE UndecidableInstances  #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE AllowAmbiguousTypes #-}
 
 module AD.ReverseMode where
 
 ------ IMPORTS ------
-import AD.ForwardMode (Semiring(..), Norm(..), Expr(..), eval, SDual (SP), act')
+import AD.ForwardMode (Semiring(..), Norm(..), Expr(..), eval, SDual (SP), act', XY (X))
 import Control.Monad (forM_)
 import Data.Array.IO (Ix, IOArray, readArray, writeArray, newArray, getAssocs)
 import Data.Map (Map, empty, toList, fromAscList, unionWith, singleton)
@@ -45,6 +42,7 @@ m `act2` f = \ n -> f (n `times` m)
 dotplus3 :: Semiring d => (d -> d) -> (d -> d) -> (d -> d)
 f1 `dotplus3` f2 = \ n -> f1 n `plus` f2 n
 
+-- | Function for reverse AD
 reverseAD :: (Eq v, Semiring d, Floating d, Transposable d d, Norm d) => (v -> d) -> v -> Expr v -> DualR d
 reverseAD env x e = let gen y = DR (env y) (if x == y then id else const zero)
                   in eval gen e
@@ -62,10 +60,8 @@ m `act2'` f = \n -> f (n `times` m)
 dotplusM :: (Ord v, Semiring d) => (d -> Map v d) -> (d -> Map v d) -> (d -> Map v d)
 f1 `dotplusM` f2 = \n -> unionWith plus (f1 n) (f2 n)
 
-
-{- 
-Data type for CDual
-Intsances: Num, Fractional, Floating, Norm, Transposable, Semiring
+{- |
+Data type for CDual, dual number for ad with sparse maps.
 -}
 data CDual v d = C {fstC :: d, sndC :: d -> Map v d}
 
@@ -107,9 +103,8 @@ reverseADSparse :: (Ord v, Semiring d, Floating d, Transposable d d, Norm d) => 
 reverseADSparse env e = let genRev x = C (env x) (singleton x)
                   in eval genRev e
 
-{- 
-Data type for CDual'
-Intsances: Num, Fractional, Floating, Norm, Transposable, Semiring
+{- |
+Data type for CDual', dual number for reverse AD with Cayley representation
 -}
 data CDual' v d = C' {fstC' :: d, sndC' :: d -> Map v d -> Map v d}
 
@@ -118,11 +113,11 @@ instance (Num d, Ord v, Semiring d) => Num (CDual' v d) where
     (*)               = times
     abs (C' f df)     = C' (abs f) (\n -> df (abs n))
     signum (C' f df)  = C' (signum f) (\n -> df (signum n))
-    fromInteger i     = C' (fromInteger i) (const (const empty))
+    fromInteger i     = C' (fromInteger i) (const id)
     negate (C' f df)  = C' (negate f) (\n -> df (negate n))
 
 instance (Fractional d, Ord v, Semiring d) => Fractional (CDual' v d)where
-    fromRational r           = C' (fromRational r) (const (const empty))
+    fromRational r           = C' (fromRational r) (const id)
     (/) (C' f df) (C' g dg)  = C' (f / g)  (\n -> dg (- f * n / g / g) . df (n * g / g / g))
 
 instance (Floating d, Ord v, Semiring d) => Floating (CDual' v d)where
@@ -142,11 +137,11 @@ instance (Ord v, Semiring d) => Semiring (CDual' v d) where
     (C' f df) `plus` (C' g dg)   = C' (f `plus` g) (\n -> dg n . df n)
     (C' f df) `times` (C' g dg)  = C' (f `times` g) (\n -> dg (n `times` f) . df (n `times` g))
 
--- function to transform CDual to CDual'
+-- | function to transform CDual to CDual'
 reprSC :: (Ord v, Semiring d) => CDual v d -> CDual' v d
 reprSC (C f df) = C' f (\n m -> unionWith plus m (df n))
 
--- function to transform CDual' to CDual
+-- | function to transform CDual' to CDual
 absSC :: (Ord v, Semiring d) => CDual' v d -> CDual v d
 absSC (C' f df) = C f (\n -> df n empty)
 

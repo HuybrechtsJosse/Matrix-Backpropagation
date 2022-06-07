@@ -1,12 +1,9 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE ViewPatterns          #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE TypeFamilies          #-}
+{-# LANGUAGE DeriveGeneric         #-}
 
 module Backpropagation.BackpropagationFull where
 
@@ -262,6 +259,13 @@ instance KnownNat n => MWC.Variate (H.R n) where
 instance (KnownNat m, KnownNat n) => MWC.Variate (H.L m n) where
     uniform g = H.uniformSample <$> MWC.uniform g <*> pure 0 <*> pure 1
     uniformR (l, h) g = (\x -> x * (h - l) + l) <$> MWC.uniform g
+
+-- instance MWC.Variate Net where
+--     uniform g = N <$> (W1, MWC.uniform g)
+--                   <*> (B1, MWC.uniform g)
+--                   <*> (W2, MWC.uniform g)
+--                   <*> (B2, MWC.uniform g)
+--     uniformR (l, h) g = (\x -> x * (h - l) + l) <$> MWC.uniform g
 
 instance NFData NetVar2
 instance NFData Net
