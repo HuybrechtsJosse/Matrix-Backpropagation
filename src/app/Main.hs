@@ -24,7 +24,7 @@ runTests = do
 main :: IO ()
 main = do
     runTests
-    BPIIO.main
-    BPI.main
     BPF.main
+    BPI.main
+    BPIIO.main
     BPS.main

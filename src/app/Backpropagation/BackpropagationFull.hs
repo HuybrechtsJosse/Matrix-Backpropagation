@@ -45,14 +45,12 @@ instance (HM.Transposable Double Double) where
     tr  d = d
     tr' d = d
 
-data NetVar2 = W1 | B1 | W2 | B2 | I | T
+data NetVar2 = W1 | B1 | I | T
     deriving (Show, Eq, Ord, Generic)
 
 -- Data type for small network example with 3 inputs and 1 output
 data Net = N { w1:: (NetVar2, H.L 10 784)
              , b1::(NetVar2, H.L 10 1)
-            --  , w2:: (NetVar2, H.L 4 10)
-            --  , b2::(NetVar2, H.L 4 1)
              }
   deriving (Show, Generic)
 
@@ -77,8 +75,6 @@ createNet matrixVarMap = N w1 b1
     where
         w1 = (W1, H.build (\n m -> findWithDefault 0 (W1, round n, round m) matrixVarMap))
         b1 = (B1, H.build (\n m -> findWithDefault 0 (B1, round n, round m) matrixVarMap))
-        -- w2 = (W2, build (\n m -> findWithDefault 0 (W2, round n, round m) matrixVarMap))
-        -- b2 = (B2, build (\n m -> findWithDefault 0 (B2, round n, round m) matrixVarMap))
 
 -- Function to transform a Net and input and target into a map
 getMatrixVarMap :: Net -> (NetVar2, H.L 784 1) -> Map NetVar2 [[Double]]
@@ -204,8 +200,6 @@ main = MWC.withSystemRandom $ \g -> do
     start <- getCurrentTime
     w1 <- MWC.uniformR (-0.5, 0.5) g
     b1 <- MWC.uniformR (-0.5, 0.5) g
-    -- w2 <- MWC.uniformR (-0.5, 0.5) g
-    -- b2 <- MWC.uniformR (-0.5, 0.5) g
     let net0 = N (W1, w1) (B1, b1)
     flip evalStateT net0 . forM_ [1..5] $ \e -> do
         train' <- liftIO . fmap V.toList $ MWC.uniformShuffle (V.fromList train) g
@@ -259,13 +253,6 @@ instance KnownNat n => MWC.Variate (H.R n) where
 instance (KnownNat m, KnownNat n) => MWC.Variate (H.L m n) where
     uniform g = H.uniformSample <$> MWC.uniform g <*> pure 0 <*> pure 1
     uniformR (l, h) g = (\x -> x * (h - l) + l) <$> MWC.uniform g
-
--- instance MWC.Variate Net where
---     uniform g = N <$> (W1, MWC.uniform g)
---                   <*> (B1, MWC.uniform g)
---                   <*> (W2, MWC.uniform g)
---                   <*> (B2, MWC.uniform g)
---     uniformR (l, h) g = (\x -> x * (h - l) + l) <$> MWC.uniform g
 
 instance NFData NetVar2
 instance NFData Net
